@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>101 日常漫遊 | Taipei Walk</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --ink:#153d38; --paper:#f6faf3; --lime:#d8f28b; --line:#ffffff42; }
+    * { box-sizing:border-box; letter-spacing:0; }
+    html,body { margin:0; width:100%; height:100%; overflow:hidden; font-family:'DM Sans','Noto Sans TC',sans-serif; background:#acd9eb; color:var(--ink); }
+    canvas#world { width:100%; height:100%; display:block; touch-action:none; }
+    button,input { font:inherit; }
+    button { cursor:pointer; color:inherit; border:0; border-radius:4px; background:var(--paper); min-height:42px; padding:10px 16px; }
+    button:hover { filter:brightness(.95); }
+    button:focus-visible { outline:3px solid #d5f17e; outline-offset:3px; }
+    button:disabled { opacity:.45; cursor:default; }
+    .glass { background:#173f38db; color:var(--paper); backdrop-filter:blur(12px); border:1px solid var(--line); border-radius:6px; }
+    header { position:fixed; top:24px; left:28px; pointer-events:none; text-shadow:0 2px 6px #17372b70; color:white; }
+    header small { font-size:10px; font-weight:700; }
+    h1 { font-size:24px; margin:4px 0; font-weight:700; }
+    #district { font-size:12px; opacity:.9; }
+    #status { position:fixed; top:26px; right:28px; display:flex; align-items:center; gap:14px; padding:10px 14px; font-size:12px; }
+    .icon { width:42px; height:42px; padding:10px; display:grid; place-items:center; }
+    .icon svg { width:20px; height:20px; }
+    #tools { position:fixed; right:28px; bottom:26px; display:flex; gap:8px; }
+    #mapbox { position:fixed; left:28px; bottom:26px; padding:9px; }
+    #map { display:block; width:170px; height:140px; }
+    #mapbox footer { display:flex; justify-content:space-between; padding:5px 3px 1px; font-size:10px; }
+    #crosshair { position:fixed; top:50%; left:50%; width:5px; height:5px; margin:-2.5px; border-radius:50%; background:#fff; box-shadow:0 0 0 1px #0005; pointer-events:none; }
+    #enter { position:fixed; left:50%; bottom:36px; transform:translateX(-50%); background:var(--lime); font-size:12px; }
+    #enter[hidden] { display:none; }
+    #interact { position:fixed; left:50%; bottom:100px; transform:translateX(-50%); background:var(--lime); min-width:180px; box-shadow:0 4px 24px #163a3530; }
+    #interact[hidden] { display:none; }
+    #objective { position:fixed; top:105px; right:28px; padding:10px 14px; font-size:12px; max-width:230px; }
+    #toast { position:fixed; top:115px; left:50%; transform:translateX(-50%) translateY(-12px); padding:12px 22px; background:var(--lime); border-radius:4px; opacity:0; transition:opacity .2s,transform .2s; pointer-events:none; font-size:13px; max-width:80%; text-align:center; }
+    #toast.visible { opacity:1; transform:translateX(-50%) translateY(0); }
+    #loading { position:fixed; inset:0; display:grid; place-items:center; background:#e5efdf; z-index:20; }
+    #loading div { text-align:center; }
+    #loading strong { font-size:26px; display:block; margin-bottom:12px; }
+    #loading span { font-size:12px; }
+    #dialog { border:0; border-radius:6px; padding:0; color:var(--ink); background:var(--paper); width:min(520px,calc(100% - 32px)); max-height:80dvh; box-shadow:0 30px 100px #0f33295c; }
+    #dialog::backdrop { background:#0c2e3059; backdrop-filter:blur(3px); }
+    .dialog-head { display:flex; align-items:center; justify-content:space-between; padding:22px 24px 12px; border-bottom:1px solid #163f3818; gap:12px; }
+    #dialog h2 { font-size:20px; margin:0; }
+    #dialog-role { font-size:11px; color:#618074; margin-top:5px; }
+    #dialog-content { padding:20px 24px 24px; line-height:1.75; font-size:14px; }
+    #dialog-content p { margin:0 0 16px; }
+    .actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:16px; }
+    .actions button { background:#e3eddf; font-size:13px; }
+    .actions button.primary { background:#234f42; color:white; }
+    .journal-row { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid #173b3114; }
+    .journal-row span { flex:1; }
+    .journal-row small { font-size:11px; color:#617966; }
+    .journal-row button { padding:6px 12px; background:#e3eddf; font-size:12px; }
+    #cards { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+    #cards button { aspect-ratio:1; padding:0; font-size:21px; background:#224e40; color:white; }
+    #cards button.matched { background:#d3e8b3; color:#325b41; }
+    input[type=range] { width:100%; accent-color:#30704c; }
+    .touch { display:none; }
+    body[data-paused=true] #crosshair { opacity:.3; }
+    @media(pointer:coarse) { .touch { display:block; } }
+    @media(max-width:600px) {
+      header { top:18px; left:18px; } h1 { font-size:20px; }
+      #status { top:20px; right:16px; padding:8px 10px; gap:8px; font-size:10px; }
+      #mapbox { left:16px; bottom:246px; padding:5px; } #map { width:112px; height:94px; }
+      #tools { right:16px; bottom:20px; } #objective { top:91px; right:16px; max-width:175px; font-size:10px; }
+      #interact { bottom:168px; font-size:12px; } #toast { top:145px; font-size:12px; } #enter { display:none; }
+      #mapbox footer { font-size:9px; } .dialog-head { padding:16px; } #dialog-content { padding:16px; }
+    }
+    #movement { position:fixed; left:18px; bottom:22px; width:136px; height:136px; }
+    #movement button { position:absolute; width:44px; height:44px; background:#f6faf3b8; padding:12px; touch-action:none; }
+    #movement button svg { width:20px; height:20px; }
+    #movement [data-key=KeyW] { left:46px; top:0; } #movement [data-key=KeyS] { left:46px; bottom:0; }
+    #movement [data-key=KeyA] { left:0; top:46px; } #movement [data-key=KeyD] { right:0; top:46px; }
+    #jump { position:fixed; right:20px; bottom:82px; background:#f6faf3b8; touch-action:none; }
+  </style>
+  <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/","cannon-es":"https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"}}</script>
+</head>
+<body>
+  <canvas id="world" aria-label="台北101第一人稱探索遊戲"></canvas>
+  <header><small>TAIPEI WALK / 01</small><h1>101 日常漫遊</h1><span id="district">信義生活圈</span></header>
+  <div id="status" class="glass"><span id="coins">80 金幣</span><span id="progress">0 / 6 區域</span></div>
+  <div id="objective" class="glass">探索信義生活圈</div>
+  <div id="crosshair"></div>
+  <button id="enter">開始探索</button>
+  <div id="mapbox" class="glass"><canvas id="map" width="340" height="280" aria-label="區域小地圖"></canvas><footer><span>TAIPEI 101</span><span id="heading">N</span></footer></div>
+  <button id="interact" hidden></button>
+  <nav id="tools"><button id="journal" class="icon glass" title="探索手帳" aria-label="探索手帳"><i data-lucide="notebook-pen"></i></button><button id="pause" class="icon glass" title="暫停" aria-label="暫停"><i data-lucide="pause"></i></button><button id="fullscreen" class="icon glass" title="全螢幕" aria-label="全螢幕"><i data-lucide="expand"></i></button></nav>
+  <div id="movement" class="touch" aria-label="移動"><button data-key="KeyW" aria-label="前進"><i data-lucide="arrow-up"></i></button><button data-key="KeyS" aria-label="後退"><i data-lucide="arrow-down"></i></button><button data-key="KeyA" aria-label="左移"><i data-lucide="arrow-left"></i></button><button data-key="KeyD" aria-label="右移"><i data-lucide="arrow-right"></i></button></div>
+  <button id="jump" class="touch icon" title="跳躍" aria-label="跳躍"><i data-lucide="chevrons-up"></i></button>
+  <div id="toast" role="status"></div>
+  <div id="loading"><div><strong>101 日常漫遊</strong><span id="load-message">正在準備城市與居民…</span></div></div>
+  <dialog id="dialog"><div class="dialog-head"><div><h2 id="dialog-title"></h2><div id="dialog-role"></div></div><button id="close-dialog" class="icon" title="關閉" aria-label="關閉"><i data-lucide="x"></i></button></div><div id="dialog-content"></div></dialog>
+  <script type="module">
+    import * as THREE from 'three';
+    import * as CANNON from 'cannon-es';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+    import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+    import { createIcons, NotebookPen, Pause, Expand, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, ChevronsUp, X } from 'https://esm.sh/lucide@0.468.0';
+
+    createIcons({ icons:{NotebookPen,Pause,Expand,ArrowUp,ArrowDown,ArrowLeft,ArrowRight,ChevronsUp,X} });
+    const $ = selector => document.querySelector(selector);
+    const canvas = $('#world');
+    const renderer = new THREE.WebGLRenderer({canvas,antialias:true,preserveDrawingBuffer:true});
+    renderer.setPixelRatio(Math.min(devicePixelRatio,1));
+    renderer.setSize(innerWidth,innerHeight);
+    renderer.shadowMap.enabled=true;
+    renderer.shadowMap.type=THREE.BasicShadowMap;
+    renderer.toneMapping=THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure=1.03;
+    const scene=new THREE.Scene();
+    scene.background=new THREE.Color('#b6dff0');
+    scene.fog=new THREE.Fog('#b6dff0',130,370);
+    const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.08,650);
+    const controls=new PointerLockControls(camera,canvas);
+    scene.add(new THREE.HemisphereLight('#fff8e4','#4d714b',2.1));
+    const sun=new THREE.DirectionalLight('#fff3ce',2.7);
+    sun.position.set(-65,120,45);sun.castShadow=true;
+    sun.shadow.mapSize.set(1024,1024);
+    Object.assign(sun.shadow.camera,{left:-105,right:105,top:100,bottom:-100,near:1,far:300});
+    sun.shadow.normalBias=.12;scene.add(sun);
+
+    const physics=new CANNON.World({gravity:new CANNON.Vec3(0,-18,0)});
+    physics.broadphase=new CANNON.SAPBroadphase(physics);
+    physics.defaultContactMaterial.friction=0;
+    const player=new CANNON.Body({mass:70,shape:new CANNON.Sphere(.42),fixedRotation:true,linearDamping:.2});
+    player.position.set(0,.5,55);physics.addBody(player);
+    camera.position.set(0,1.78,55);camera.lookAt(0,24,0);
+    const keys=new Set();
+    const clock=new THREE.Clock();
+    const npcs=[];
+    const interactions=[];
+    const waterAreas=[];
+    const collisionBoxes=[];
+    const terrainMeshes=[];
+    const terrainRay=new THREE.Raycaster();
+    const regionLabels=[];
+    const worldData=__WORLD_DATA__;
+    let paused=false, ready=false, nearby=null, gameTime=0, toastTimer, selectedZone=null;
+    let progress={coins:80,visited:[],purchases:[],rewards:[]};
+    try {const saved=JSON.parse(localStorage.getItem('taipei-walk-v1'));if(saved&&Array.isArray(saved.visited)&&Number.isFinite(saved.coins))progress={...progress,...saved};}catch{}
+    const regions=[
+      {id:'plaza',name:'101 廣場',x:0,z:24,radius:14,color:'#e6c46c'},
+      {id:'shops',name:'信義購物街',x:0,z:47,radius:13,color:'#efaaa7'},
+      {id:'office',name:'綠意共享辦公室',x:-22,z:-16,radius:12,color:'#b9b8ed'},
+      {id:'river',name:'湖畔景觀橋',x:58,z:-8.4,radius:15,color:'#80d2e7'},
+      {id:'golf',name:'東側高爾夫球場',x:74,z:9,radius:16,color:'#c4df78'},
+      {id:'games',name:'午後遊戲草坪',x:-65,z:8,radius:13,color:'#f2ad78'}
+    ];
+    function save(){try{localStorage.setItem('taipei-walk-v1',JSON.stringify(progress));}catch{}updateHud();}
+    function updateHud(){$('#coins').textContent=`${progress.coins} 金幣`;$('#progress').textContent=`${progress.visited.length} / 6 區域`;}
+    function toast(text){$('#toast').textContent=text;$('#toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('visible'),3500);}
+    function reward(id,amount){if(progress.rewards.includes(id))return false;progress.rewards.push(id);progress.coins+=amount;save();toast(`完成活動 · +${amount} 金幣`);return true;}
+    const mats={};
+    function mat(color,roughness=.8){if(!mats[color])mats[color]=new THREE.MeshStandardMaterial({color,roughness});return mats[color];}
+    function mesh(geometry,color,parent=scene){const result=new THREE.Mesh(geometry,typeof color==='string'?mat(color):color);result.castShadow=true;result.receiveShadow=true;parent.add(result);return result;}
+    function box(x,y,z,width,height,depth,color,parent=scene){const result=mesh(new THREE.BoxGeometry(width,height,depth),color,parent);result.position.set(x,y,z);return result;}
+    function solidBox(x,y,z,width,height,depth,rotation=0){const body=new CANNON.Body({mass:0,shape:new CANNON.Box(new CANNON.Vec3(width/2,height/2,depth/2))});body.position.set(x,y,z);body.quaternion.setFromAxisAngle(new CANNON.Vec3(1,0,0),rotation);physics.addBody(body);collisionBoxes.push(body);return body;}
+    function sphere(x,y,z,radius,color,parent=scene){const result=mesh(new THREE.SphereGeometry(radius,12,8),color,parent);result.position.set(x,y,z);return result;}
+    const hands=new THREE.Group();camera.add(hands);scene.add(camera);
+    for(const side of [-1,1]){const sleeve=box(side*.29,-.40,-.48,.13,.32,.14,'#5e8c81',hands);sleeve.rotation.x=-.35;sphere(side*.29,-.28,-.54,.065,'#d7a47f',hands);}
+    hands.traverse(object=>{if(object.isMesh){object.castShadow=false;object.receiveShadow=false;}});
+    function label(text,x,y,z,scale=3.5){const image=document.createElement('canvas');image.width=512;image.height=128;const ctx=image.getContext('2d');ctx.fillStyle='#194739e8';ctx.beginPath();ctx.roundRect(2,2,508,124,12);ctx.fill();ctx.font='600 42px "Noto Sans TC",sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#fff9e8';ctx.fillText(text,256,64);const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(image),depthTest:true}));sprite.position.set(x,y,z);sprite.scale.set(scale,scale/4,1);scene.add(sprite);return sprite;}
+    function road(points,width=3,color='#d0c9ad',height=.025){const curve=new THREE.CatmullRomCurve3(points.map(([x,z])=>new THREE.Vector3(x,height,z)));const vertices=[],indices=[];for(let step=0;step<=100;step++){const point=curve.getPoint(step/100),tangent=curve.getTangent(step/100);const normal=new THREE.Vector3(-tangent.z,0,tangent.x).normalize().multiplyScalar(width/2);vertices.push(point.x+normal.x,height,point.z+normal.z,point.x-normal.x,height,point.z-normal.z);if(step<100){const index=step*2;indices.push(index,index+2,index+1,index+1,index+2,index+3);}}const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));geometry.setIndex(indices);geometry.computeVertexNormals();return mesh(geometry,color);}
+    function bench(x,z,rotation=0){const group=new THREE.Group();group.position.set(x,0,z);group.rotation.y=rotation;scene.add(group);box(0,.5,0,2.1,.15,.65,'#8b6545',group);box(0,.96,-.3,2.1,.7,.12,'#8b6545',group);for(const side of [-.8,.8])box(side,.25,0,.12,.5,.5,'#3b5f51',group);}
+    function lamp(x,z){box(x,2,z,.09,4,.09,'#385349');const globe=sphere(x,4,z,.22,'#fff0bb');globe.material=mat('#fff0bb').clone();globe.material.emissive.set('#efc96b');globe.material.emissiveIntensity=.4;}
+    function buildLandscape(){
+      const floor=mesh(new THREE.CylinderGeometry(1,1,.3,96),'#83a74c');floor.scale.set(106,1,86);floor.position.y=-.2;
+      solidBox(0,-1,0,220,2,180);
+      solidBox(0,4.6,0,25,8,21.5);
+      for(const entry of worldData.buildings)solidBox(...entry.position,...entry.size);
+      road([[0,15],[0,30],[0,46],[0,63]],7);
+      const ring=[];for(let step=0;step<=64;step++){const angle=step*Math.PI*2/64;ring.push([45*Math.cos(angle),37*Math.sin(angle)]);}road(ring,3.8);
+      road([[0,38],[22,31],[42,13],[46,0],[64,0],[74,9],[88,20]],3.6);
+      road([[0,38],[-24,34],[-43,22],[-65,8],[-82,-4]],3.5);
+      road([[-42,12],[-40,-6],[-22,-16],[-10,-24],[0,-38]],3.4);
+      road([[42,13],[58,10],[58,-8.4],[58,-28],[43,-36]],3.4);
+      for(let hole=0;hole<18;hole++){if(hole===4||hole===13)continue;const angle=hole*Math.PI*2/18+Math.PI/18;waterAreas.push({x:58.5*Math.cos(angle),z:-48.5*Math.sin(angle),angle:-angle-Math.PI/2});}
+      const bridgeZ=-8.42;
+      box(58,1.4,bridgeZ,3.6,.3,24,'#ad8055');solidBox(58,1.4,bridgeZ,3.6,.3,24);
+      for(const side of [-1,1]){
+        for(let index=0;index<=12;index++)box(58+side*1.67,2.05,bridgeZ-12+index*2,.1,1.1,.1,'#674b39');
+        box(58+side*1.67,2.52,bridgeZ,.12,.12,24,'#674b39');
+      }
+      for(const side of [-1,1]){
+        const ramp=box(58,.7,bridgeZ+side*15,3.6,.18,6.3,'#ad8055');
+        ramp.rotation.x=side*.25;solidBox(58,.7,bridgeZ+side*15,3.6,.18,6.3,side*.25);
+      }
+      for(let step=0;step<24;step++)box(58,1.56,bridgeZ-11.5+step,3.4,.025,.04,'#74523c');
+      for(const [x,z,rotation] of [[-5,24,0],[5,24,0],[62,-18,Math.PI/2],[-61,13,0],[8,58,0]])bench(x,z,rotation);
+      for(let step=0;step<12;step++){const angle=step*Math.PI*2/12;lamp(43*Math.cos(angle),35*Math.sin(angle));}
+      for(let step=0;step<10;step++){const angle=step*Math.PI*2/10;const hill=mesh(new THREE.SphereGeometry(1,14,8),step%2?'#72977f':'#8ba591');hill.position.set(230*Math.cos(angle),12,220*Math.sin(angle));hill.scale.set(45,25+step%3*12,32);}
+      for(let step=0;step<12;step++){const cloud=new THREE.Group();cloud.position.set(Math.sin(step*13)*160,100+step%3*12,Math.cos(step*9)*150);scene.add(cloud);for(let part=0;part<3;part++){const puff=sphere(part*8,Math.sin(part)*2,0,8,'#fffdf1',cloud);puff.scale.set(1.7,.45,.8);puff.castShadow=false;}}
+      label('TAIPEI 101',0,7,12,8);
+      for(const region of regions)regionLabels.push(label(region.name,region.x,4.2,region.z,4.5));
+    }
+    function buildShops(){
+      const names=['山嵐咖啡','城市選物','花日小舖'];
+      const colors=['#c67b65','#e6c76f','#799998'];
+      for(let index=0;index<3;index++)for(const side of [-1,1]){
+        const x=side*9,z=38+index*8;
+        box(x,1.6,z,5,3.2,5,'#f1e8cd');solidBox(x,1.6,z,5,3.2,5);
+        box(x,3.35,z,6,.22,6,colors[index]);
+        box(x-side*2.52,1.5,z,.04,1.7,3.5,'#456c69');
+        for(let stripe=0;stripe<6;stripe++)box(x-side*2.9,2.65,z-2.1+stripe*.8,1.2,.12,.76,stripe%2?'#fcf3dc':colors[index]);
+        label(names[index],x,3.9,z,3.5);
+      }
+      for(const side of [-1,1])for(let index=0;index<3;index++){const x=side*4.8,z=40+index*8;box(x,.5,z,1.2,1,1.2,'#b3b38b');const tree=sphere(x,2.1,z,1.1,'#47764b');tree.scale.y=1.4;}
+    }
+    function buildOffice(){
+      box(-22,.1,-16,13,.2,10,'#c7c7af');
+      box(-22,3.1,-16,14,.2,11,'#577c68');
+      for(const x of [-28,-16])for(const z of [-20,-12]){box(x,1.55,z,.16,3.1,.16,'#547564');solidBox(x,1.55,z,.2,3.1,.2);}
+      for(let index=0;index<4;index++){const x=-26+index*2.6;box(x,.78,-17,1.9,.12,1,'#e1c49b');box(x,.37,-17,.16,.74,.5,'#52695f');box(x,1.2,-17.2,.95,.6,.07,'#364c54');box(x,.85,-16.8,.65,.04,.22,'#657c80');box(x,.45,-15.8,.7,.12,.65,'#677f68');}
+      solidBox(-22,.45,-17,12,.9,1.1);
+      label('OPEN STUDIO',-22,3.65,-16,5);
+    }
+    function makePerson(name,role,x,z,color,activity='idle',path=null){
+      const root=new THREE.Group();root.position.set(x,0,z);scene.add(root);
+      const torso=box(0,1.13,0,.42,.55,.25,color,root);
+      box(0,.82,0,.35,.15,.25,'#354650',root);
+      sphere(0,1.66,0,.17,'#d7a47f',root);
+      for(const side of [-1,1])box(side*.055,1.68,.154,.024,.027,.014,'#343c39',root);
+      sphere(0,1.63,.163,.025,'#d7a47f',root);
+      const hair=sphere(0,1.75,-.025,.17,'#3e332f',root);hair.scale.y=.55;
+      const arms=[],legs=[];
+      for(const side of [-1,1]){
+        const arm=new THREE.Group();arm.position.set(side*.28,1.37,0);root.add(arm);box(0,-.22,0,.14,.42,.15,color,arm);sphere(0,-.46,0,.073,'#d7a47f',arm);arms.push(arm);
+        const leg=new THREE.Group();leg.position.set(side*.105,.78,0);root.add(leg);box(0,-.28,0,.16,.56,.18,'#394d59',leg);box(0,-.6,.04,.18,.12,.29,'#eef0dc',leg);legs.push(leg);
+      }
+      const person={name,role,root,torso,arms,legs,activity,path,origin:new THREE.Vector3(x,0,z),phase:npcs.length*.9};
+      if(activity==='golf'){box(0,-.83,0,.025,.84,.025,'#a9b5b4',arms[1]);box(.07,-1.23,0,.17,.08,.08,'#747f83',arms[1]);person.ball=sphere(x+1.4,.12,z-1,.10,'#fffdf2');}
+      if(activity==='shop'){box(.03,-.57,.02,.22,.28,.16,'#d9b17d',arms[0]);}
+      if(activity==='view'||activity==='game'){box(0,-.40,.1,.12,.21,.03,'#263941',arms[1]);arms[1].rotation.x=-.8;}
+      if(activity==='office'){root.position.y=-.25;root.rotation.y=Math.PI;legs.forEach(leg=>leg.rotation.x=-1.2);arms.forEach(arm=>arm.rotation.x=-1.2);}
+      if(activity==='view')root.lookAt(0,0,0);
+      if(activity==='game')root.lookAt(-65,0,6);
+      root.traverse(object=>{if(object.isMesh)object.castShadow=false;});
+      npcs.push(person);interactions.push({type:'npc',position:root.position,person,name:`與 ${name} 交談`,radius:3.3});return person;
+    }
+    function buildResidents(){
+      makePerson('小晴','城市嚮導',-2,56,'#e5af55');
+      makePerson('阿哲','高爾夫教練',72,9,'#f0e5c4','golf');
+      makePerson('宇辰','球友',77,3,'#649aab','golf');
+      makePerson('欣怡','球友',70,-4,'#db957b','golf');
+      makePerson('美玲','景觀攝影師',60,-17,'#bc9cce','view');
+      makePerson('志明','湖畔旅人',55,-21,'#7c9fa1','view');
+      makePerson('佩瑜','咖啡店主',4,41,'#d69073','shop');
+      makePerson('阿凱','遊戲社主持人',-64,8,'#c9a753','game');
+      makePerson('子涵','玩家',-66,7,'#879cce','game');
+      makePerson('家豪','專案設計師',-23.4,-15.7,'#aac4bf','office');
+      for(let index=0;index<3;index++)makePerson(['品萱','冠宇','雅婷'][index],'共享辦公室夥伴',-26+index*2.6,-15.7,['#becde1','#d2a29b','#c4c78d'][index],'office');
+      makePerson('安安','散步居民',-5,27,'#c58f8a','chat').root.rotation.y=Math.PI;
+      makePerson('小林','散步居民',-5,25.4,'#729bb0','chat');
+      for(let index=0;index<12;index++){
+        const side=index%2?1:-1,z=35+index*2;
+        makePerson(`街區居民 ${index+1}`,'逛街散步中',side*3,z,['#deac76','#a6bda8','#859cbb','#d29ca0'][index%4],'shop',[[side*3,35],[side*3,59]]);
+      }
+      for(let index=0;index<6;index++){
+        const x=45+index*2,z=20-index*4;
+        makePerson(`公園遊客 ${index+1}`,'公園慢行中',x,z,['#cfaa75','#93b3ae','#bf9fb9'][index%3],'walk',[[42,22],[51,14],[57,10]]);
+      }
+      box(-65,.65,6,2.2,.12,1.4,'#b48b5d');
+      for(let index=0;index<8;index++)box(-65.75+(index%4)*.5,.73,5.75+Math.floor(index/4)*.5,.3,.05,.3,index%2?'#e4d195':'#537a69');
+    }
+    const golfBall=new CANNON.Body({mass:.045,shape:new CANNON.Sphere(.13),linearDamping:.45,angularDamping:.5});
+    const ballMesh=sphere(73,2.36,13,.13,'#fffefa');
+    const hole={x:83,z:13};
+    const puttGreen=box(78,2.1,13,24,.25,10,'#b2ce6d');solidBox(78,2.1,13,24,.25,10);terrainMeshes.push(puttGreen);
+    const greenRamp=box(70,1.1,21,3.8,.12,6.4,'#b2ce6d');greenRamp.rotation.x=.35;solidBox(70,1.1,21,3.8,.12,6.4,.35);
+    const holeMesh=mesh(new THREE.CylinderGeometry(.35,.35,.035,24),'#203e2c');holeMesh.position.set(hole.x,2.25,hole.z);
+    box(hole.x,3.3,hole.z,.035,2.1,.035,'#e4e6d1');box(hole.x+.3,4.1,hole.z,.6,.35,.025,'#d87a54');
+    let golfActive=false,golfTimer=0;
+    function openDialog(title,role,html){keys.clear();controls.unlock();paused=true;document.body.dataset.paused='true';$('#dialog-title').textContent=title;$('#dialog-role').textContent=role;$('#dialog-content').innerHTML=html;if(!$('#dialog').open)$('#dialog').showModal();}
+    function action(text,callback,primary=false){const button=document.createElement('button');button.textContent=text;if(primary)button.className='primary';button.addEventListener('click',callback);return button;}
+    function actions(){const row=document.createElement('div');row.className='actions';$('#dialog-content').append(row);return row;}
+    function closeDialog(){$('#dialog').close();paused=false;document.body.dataset.paused='false';}
+    function showJournal(){openDialog('探索手帳','CITY PASSPORT',`<p>已探索 ${progress.visited.length} / 6 個區域 · ${progress.coins} 金幣</p>`);for(const region of regions){const row=document.createElement('div');row.className='journal-row';const name=document.createElement('span');name.textContent=region.name;const state=document.createElement('small');state.textContent=progress.visited.includes(region.id)?'已抵達':'未探索';row.append(name,state,action('追蹤',()=>{selectedZone=region;closeDialog();}));$('#dialog-content').append(row);}const inventory=document.createElement('p');inventory.style.marginTop='18px';inventory.textContent=`隨身物品：${progress.purchases.join('、')||'城市探索手帳'}`;$('#dialog-content').append(inventory);}
+    function talk(person){
+      person.root.lookAt(player.position.x,person.root.position.y,player.position.z);
+      const lines={golf:'今天風很輕，是練習推桿的好日子。這條練習道到球洞大約十公尺。',view:'從橋上往城市看，101 會出現在樹梢之間。我喜歡等人群散開的那一刻。',shop:'這條街的咖啡、花店和選物店都很熱鬧。繞一圈再回廣場，常常會遇到朋友。',office:'我們把工作室搬到綠蔭下了。有人整理郵件，有人畫設計圖，午後再去湖邊休息。',game:'午休就來一局配對遊戲吧！十二張牌，六組圖案，全數配對就有獎勵。',chat:'剛才有人在橋邊拍照，也有人在東邊練球。住在這裡，每天都能找到不同的小風景。',walk:'我正沿著湖邊步道散步。走慢一點，會發現城市和球場其實離得很近。',idle:'歡迎來到信義生活圈！我最喜歡橋上的景色、綠蔭工作室和午後遊戲草坪。'};
+      openDialog(person.name,person.role,`<p>${lines[person.activity]||lines.idle}</p>`);
+      const row=actions();row.append(action('推薦附近景點',()=>{const destination=regions.find(region=>!progress.visited.includes(region.id))||regions[3];selectedZone=destination;$('#dialog-content').querySelector('p').textContent=`可以去「${destination.name}」。我已經在你的手帳裡標記了。`; }));
+      if(person.activity==='golf')row.append(action('練習推桿',showGolf,true));
+      if(person.activity==='game')row.append(action('來一局',startCards,true));
+      if(person.name==='佩瑜')row.append(action('買杯咖啡 · 15 金幣',()=>{if(progress.coins<15){toast('金幣不足');return;}progress.coins-=15;if(!progress.purchases.includes('山嵐咖啡'))progress.purchases.push('山嵐咖啡');save();$('#dialog-content').querySelector('p').textContent='你的咖啡好了！今天的豆子帶一點柑橘與可可香。';},true));
+      if(person.activity==='office')row.append(action('幫忙整理工作',startOffice,true));
+      row.append(action('再見',closeDialog));
+    }
+    function showGolf(){openDialog('東側推桿練習','10 m · 一桿挑戰',`<p>阿哲：「穩定的力道，比大力揮桿更重要。」</p><label for="power">推桿力道 <output id="power-label">50%</output></label><input id="power" type="range" min="10" max="100" value="50">`);$('#power').addEventListener('input',event=>$('#power-label').textContent=event.target.value+'%');actions().append(action('揮桿',()=>{const power=Number($('#power').value);closeDialog();if(golfActive)physics.removeBody(golfBall);golfBall.position.set(73,2.38,13);golfBall.velocity.set(power*.11,0,0);golfBall.angularVelocity.set(0,0,0);physics.addBody(golfBall);golfBall.wakeUp();golfActive=true;golfTimer=0;player.position.set(70,2.75,16);player.velocity.set(0,0,0);camera.position.set(70,4.07,16);camera.lookAt(79,2.25,13);toast('推桿中…');},true));}
+    let cardRound=0;
+    function startCards(){
+      const round=++cardRound;const symbols=['☀','♣','◆','♫','♥','★'];const deck=[...symbols,...symbols];for(let index=deck.length-1;index>0;index--){const swap=Math.floor(Math.random()*(index+1));[deck[index],deck[swap]]=[deck[swap],deck[index]];}
+      openDialog('午後配對賽','六組配對 · 獎勵 30 金幣','<p id="card-score">0 / 6 組</p><div id="cards"></div>');let flipped=[],matched=0,busy=false;
+      deck.forEach(symbol=>{const button=action('?',()=>{if(busy||button.classList.contains('matched')||flipped.includes(button))return;button.textContent=symbol;flipped.push(button);if(flipped.length===2){if(flipped[0].dataset.symbol===flipped[1].dataset.symbol){flipped.forEach(card=>card.classList.add('matched'));flipped=[];matched++;$('#card-score').textContent=`${matched} / 6 組`;if(matched===6){reward('cards',30);$('#card-score').textContent='全部配對成功！';}}else{busy=true;const pair=[...flipped];setTimeout(()=>{if(round!==cardRound)return;pair.forEach(card=>card.textContent='?');flipped=[];busy=false;},850);}}});button.dataset.symbol=symbol;$('#cards').append(button);});
+    }
+    function startOffice(){let complete=0;openDialog('綠意工作台','協助設計團隊 · 獎勵 20 金幣','<p id="office-status">待辦事項 0 / 3</p>');const row=actions();for(const task of ['確認景觀圖稿','整理會議紀錄','寄出球場設計提案'])row.append(action(task,event=>{complete++;const button=[...row.children].find(item=>item.textContent===task);button.disabled=true;button.textContent='已完成 · '+task;$('#office-status').textContent=`待辦事項 ${complete} / 3`;if(complete===3)reward('office',20);}));}
+    function nearestInteraction(){let closest=null,distance=Infinity;for(const item of interactions){const next=Math.hypot(player.position.x-item.position.x,player.position.z-item.position.z);if(next<item.radius&&next<distance){closest=item;distance=next;}}nearby=closest;$('#interact').hidden=!closest||paused;$('#interact').textContent=closest?.name||'';}
+    function interact(){if(nearby&&!paused)talk(nearby.person);}
+    function jump(){if(paused)return;let grounded=false;for(const contact of physics.contacts){if(contact.bi===player&&contact.ni.y<-.4||contact.bj===player&&contact.ni.y>.4)grounded=true;}if(grounded)player.velocity.y=6.5;}
+    function movePlayer(delta){
+      if(paused){player.velocity.x=0;player.velocity.z=0;return;}
+      const forward=new THREE.Vector3();camera.getWorldDirection(forward);forward.y=0;forward.normalize();const right=new THREE.Vector3().crossVectors(forward,new THREE.Vector3(0,1,0));
+      const direction=new THREE.Vector3();if(keys.has('KeyW')||keys.has('ArrowUp'))direction.add(forward);if(keys.has('KeyS')||keys.has('ArrowDown'))direction.sub(forward);if(keys.has('KeyD')||keys.has('ArrowRight'))direction.add(right);if(keys.has('KeyA')||keys.has('ArrowLeft'))direction.sub(right);direction.normalize();
+      const speed=(keys.has('ShiftLeft')||keys.has('ShiftRight'))?7.2:4.2;
+      player.velocity.x=THREE.MathUtils.damp(player.velocity.x,direction.x*speed,12,delta);player.velocity.z=THREE.MathUtils.damp(player.velocity.z,direction.z*speed,12,delta);
+      const oldX=player.position.x,oldZ=player.position.z;
+      physics.step(1/60,delta,4);
+      if((player.position.x/102)**2+(player.position.z/82)**2>1){player.position.x=oldX;player.position.z=oldZ;player.velocity.x=0;player.velocity.z=0;}
+      for(const lake of waterAreas){const dx=player.position.x-lake.x,dz=player.position.z-lake.z;const localX=dx*Math.cos(lake.angle)+dz*Math.sin(lake.angle),localZ=-dx*Math.sin(lake.angle)+dz*Math.cos(lake.angle);const onBridge=Math.abs(player.position.x-58)<1.9&&Math.abs(player.position.z+8.42)<19;if((localX/8.1)**2+(localZ/4.4)**2<1&&!onBridge){player.position.x=oldX;player.position.z=oldZ;player.velocity.x=0;player.velocity.z=0;}}
+      if(player.position.y<-3){player.position.set(0,.5,55);player.velocity.set(0,0,0);}
+      const bob=direction.lengthSq()>0?Math.sin(gameTime*10)*.035:0;camera.position.set(player.position.x,player.position.y+1.32+bob,player.position.z);
+      hands.position.y=direction.lengthSq()>0?Math.sin(gameTime*10)*.018:Math.sin(gameTime*1.6)*.008;
+    }
+    function terrainHeight(x,z){terrainRay.set(new THREE.Vector3(x,25,z),new THREE.Vector3(0,-1,0));const hits=terrainRay.intersectObjects(terrainMeshes,false);return hits.length?Math.max(0,hits[0].point.y):0;}
+    function installTerrain(model){model.updateMatrixWorld(true);model.traverse(object=>{if(!object.isMesh||!['Fairway','Mown_grass','Putting_green','Bunker_sand'].includes(object.name))return;terrainMeshes.push(object);const attribute=object.geometry.attributes.position,vertices=[],point=new THREE.Vector3();for(let index=0;index<attribute.count;index++){point.fromBufferAttribute(attribute,index).applyMatrix4(object.matrixWorld);vertices.push(point.x,point.y,point.z);}const indices=object.geometry.index?Array.from(object.geometry.index.array):Array.from({length:attribute.count},(_,index)=>index);const body=new CANNON.Body({mass:0,shape:new CANNON.Trimesh(vertices,indices)});physics.addBody(body);});for(const person of npcs){person.origin.y=terrainHeight(person.origin.x,person.origin.z);person.root.position.y=person.origin.y+(person.activity==='office'?-.25:0);}}
+    function updateResidents(){
+      for(const person of npcs){const time=gameTime+person.phase;
+        if(person.path){const segment=(time*.035)%1;const points=person.path;const progress=Math.sin(segment*Math.PI*2)*.5+.5;const end=points[points.length-1],start=points[0];const previous=person.root.position.clone();person.root.position.x=THREE.MathUtils.lerp(start[0],end[0],progress);person.root.position.z=THREE.MathUtils.lerp(start[1],end[1],progress);if(previous.distanceToSquared(person.root.position)>.0000001)person.root.rotation.y=Math.atan2(person.root.position.x-previous.x,person.root.position.z-previous.z);person.legs[0].rotation.x=Math.sin(time*5)*.45;person.legs[1].rotation.x=-Math.sin(time*5)*.45;person.arms[0].rotation.x=-Math.sin(time*5)*.3;person.arms[1].rotation.x=Math.sin(time*5)*.3;}
+        else if(person.activity==='golf'){person.arms[1].rotation.x=Math.sin(time*1.3)*1.1-.3;person.arms[0].rotation.x=person.arms[1].rotation.x*.6;const phase=(time*.22)%1;person.ball.position.set(person.origin.x+1.4+phase*5,person.origin.y+.12+Math.sin(phase*Math.PI)*1.8,person.origin.z-1-phase*3);}
+        else if(person.activity==='office'){person.arms[0].rotation.x=-1.1+Math.sin(time*8)*.1;person.arms[1].rotation.x=-1.1-Math.sin(time*8)*.1;}
+        else if(person.activity==='chat'||person.activity==='idle'){person.arms[0].rotation.z=.15+Math.sin(time*1.9)*.18;person.root.rotation.y+=Math.sin(time)*.0004;}
+        else if(person.activity==='view'){person.arms[1].rotation.x=-1.25+Math.sin(time*.7)*.12;}
+        else if(person.activity==='game'){person.arms[1].rotation.x=-.8+Math.sin(time*2)*.16;}
+      }
+    }
+    const actorBatches=[];
+    function batchActors(){
+      const groups=new Map();
+      for(const person of npcs)person.root.traverse(object=>{
+        if(!object.isMesh)return;
+        const key=object.geometry.type+object.material.uuid;
+        if(!groups.has(key))groups.set(key,{material:object.material,type:object.geometry.type,objects:[]});
+        groups.get(key).objects.push(object);
+        object.visible=false;
+      });
+      for(const group of groups.values()){
+        const geometry=group.type==='BoxGeometry'?new THREE.BoxGeometry(1,1,1):new THREE.SphereGeometry(1,10,6);
+        const instances=new THREE.InstancedMesh(geometry,group.material,group.objects.length);
+        instances.instanceMatrix.setUsage(THREE.DynamicDrawUsage);instances.frustumCulled=false;instances.receiveShadow=true;scene.add(instances);
+        actorBatches.push({...group,instances});
+      }
+      syncActors();
+    }
+    const actorMatrix=new THREE.Matrix4();
+    const actorScale=new THREE.Vector3();
+    function syncActors(){
+      for(const person of npcs)person.root.updateMatrixWorld(true);
+      for(const group of actorBatches){group.objects.forEach((object,index)=>{
+        const parameters=object.geometry.parameters;
+        actorScale.set(parameters.width||parameters.radius,parameters.height||parameters.radius,parameters.depth||parameters.radius);
+        actorMatrix.copy(object.matrixWorld).scale(actorScale);group.instances.setMatrixAt(index,actorMatrix);
+      });group.instances.instanceMatrix.needsUpdate=true;}
+    }
+    function batchScenery(){
+      scene.updateMatrixWorld(true);
+      const moving=new Set([camera,ballMesh,...npcs.map(person=>person.root),...npcs.map(person=>person.ball).filter(Boolean)]);
+      const groups=new Map(),originals=[];
+      scene.traverse(object=>{
+        if(!object.isMesh||object.isInstancedMesh)return;
+        for(let ancestor=object;ancestor;ancestor=ancestor.parent)if(moving.has(ancestor))return;
+        let geometry=object.geometry.clone();if(geometry.index)geometry=geometry.toNonIndexed();
+        geometry.applyMatrix4(object.matrixWorld);
+        if(!geometry.attributes.uv)geometry.setAttribute('uv',new THREE.BufferAttribute(new Float32Array(geometry.attributes.position.count*2),2));
+        const key=object.material.uuid;
+        if(!groups.has(key))groups.set(key,{material:object.material,geometries:[]});
+        groups.get(key).geometries.push(geometry);originals.push(object);
+      });
+      for(const object of originals)object.removeFromParent();
+      for(const group of groups.values()){const geometry=mergeGeometries(group.geometries);const combined=new THREE.Mesh(geometry,group.material);combined.castShadow=true;combined.receiveShadow=true;scene.add(combined);}
+    }
+    function updateGolf(delta){if(!golfActive)return;golfTimer+=delta;ballMesh.position.copy(golfBall.position);if(Math.hypot(golfBall.position.x-hole.x,golfBall.position.z-hole.z)<.5&&golfBall.position.y<2.6&&golfBall.velocity.length()<1.6){golfActive=false;physics.removeBody(golfBall);ballMesh.position.set(hole.x,2.26,hole.z);if(!reward('golf',40))toast('漂亮！再次推桿入洞。');}else if(golfTimer>9||golfTimer>2&&golfBall.velocity.length()<.05){golfActive=false;physics.removeBody(golfBall);toast('差一點！再找阿哲挑戰一次。');}}
+    function explore(){for(const sign of regionLabels)sign.material.opacity=THREE.MathUtils.clamp((sign.position.distanceTo(camera.position)-7)/12,0,.9);let local=null;for(const region of regions){if(Math.hypot(player.position.x-region.x,player.position.z-region.z)<region.radius){local=region;if(!progress.visited.includes(region.id)){progress.visited.push(region.id);progress.coins+=10;save();toast(`發現 ${region.name} · +10 金幣`);if(progress.visited.length===regions.length){reward('explorer',60);toast('六個區域全部探索完成 · +60 金幣');}}}}$('#district').textContent=local?.name||'信義生活圈';if(selectedZone){const distance=Math.round(Math.hypot(player.position.x-selectedZone.x,player.position.z-selectedZone.z));$('#objective').textContent=`${selectedZone.name} · ${distance} m`;}else $('#objective').textContent=progress.visited.length===6?'城市探索完成':'探索信義生活圈';}
+    const mapContext=$('#map').getContext('2d');
+    function drawMap(){const ctx=mapContext;ctx.clearRect(0,0,340,280);const mapPoint=(x,z)=>[170+x*1.42,140+z*1.42];ctx.strokeStyle='#ffffff38';ctx.lineWidth=3;ctx.beginPath();ctx.ellipse(170,140,148,121,0,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.ellipse(170,140,64,53,0,0,Math.PI*2);ctx.stroke();ctx.strokeStyle='#ffffff60';ctx.beginPath();ctx.moveTo(170,157);ctx.lineTo(170,234);ctx.stroke();ctx.fillStyle='#9cc2c1';ctx.fillRect(158,128,24,24);for(const region of regions){const [x,z]=mapPoint(region.x,region.z);ctx.beginPath();ctx.arc(x,z,progress.visited.includes(region.id)?5:3.5,0,Math.PI*2);ctx.fillStyle=region.color;ctx.fill();if(selectedZone===region){ctx.strokeStyle='#d9f38e';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,z,10,0,Math.PI*2);ctx.stroke();}}for(const person of npcs){const [x,z]=mapPoint(person.root.position.x,person.root.position.z);ctx.fillStyle='#ffffff70';ctx.fillRect(x,z,2,2);}const [x,z]=mapPoint(player.position.x,player.position.z);const direction=new THREE.Vector3();camera.getWorldDirection(direction);ctx.save();ctx.translate(x,z);ctx.rotate(Math.atan2(direction.x,-direction.z));ctx.fillStyle='#e3f59b';ctx.beginPath();ctx.moveTo(0,-7);ctx.lineTo(-5,5);ctx.lineTo(5,5);ctx.closePath();ctx.fill();ctx.restore();$('#heading').textContent=['N','E','S','W'][Math.round((Math.atan2(direction.x,-direction.z)+Math.PI*2)/(Math.PI/2))%4];}
+    $('#interact').addEventListener('click',interact);$('#journal').addEventListener('click',showJournal);$('#close-dialog').addEventListener('click',closeDialog);
+    $('#dialog').addEventListener('cancel',()=>{paused=false;document.body.dataset.paused='false';keys.clear();});
+    $('#pause').addEventListener('click',()=>{openDialog('暫停漫遊','TAIPEI WALK','');actions().append(action('繼續探索',closeDialog,true),action('探索手帳',showJournal),action('返回購物街',()=>{player.position.set(0,.5,55);player.velocity.set(0,0,0);camera.lookAt(0,10,0);closeDialog();}));});
+    $('#fullscreen').addEventListener('click',async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{toast('目前瀏覽器不支援全螢幕');}});
+    addEventListener('keydown',event=>{if($('#dialog').open)return;if(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(event.code))event.preventDefault();keys.add(event.code);if(event.code==='Space'&&!event.repeat)jump();if(event.code==='KeyE'&&!event.repeat)interact();if(event.code==='KeyM'&&!event.repeat)showJournal();});
+    addEventListener('keyup',event=>keys.delete(event.code));addEventListener('blur',()=>keys.clear());document.addEventListener('visibilitychange',()=>keys.clear());
+    controls.addEventListener('unlock',()=>keys.clear());
+    controls.addEventListener('lock',()=>$('#enter').hidden=true);
+    controls.addEventListener('unlock',()=>$('#enter').hidden=false);
+    document.addEventListener('pointerlockerror',()=>{$('#enter').hidden=true;toast('已切換為拖曳視角');});
+    $('#enter').addEventListener('click',()=>{try{controls.lock();}catch{}$('#enter').hidden=true;});
+    let pointer=null;
+    canvas.addEventListener('pointerdown',event=>{if(paused||!ready)return;pointer={id:event.pointerId,x:event.clientX,y:event.clientY,moved:false};canvas.setPointerCapture(event.pointerId);});
+    canvas.addEventListener('pointermove',event=>{if(!pointer||controls.isLocked||paused)return;const dx=event.clientX-pointer.x,dy=event.clientY-pointer.y;pointer.moved||=Math.abs(dx)+Math.abs(dy)>3;const rotation=new THREE.Euler().setFromQuaternion(camera.quaternion,'YXZ');rotation.y-=dx*.003;rotation.x=THREE.MathUtils.clamp(rotation.x-dy*.003,-Math.PI*.48,Math.PI*.48);camera.quaternion.setFromEuler(rotation);pointer.x=event.clientX;pointer.y=event.clientY;});
+    canvas.addEventListener('pointerup',event=>{if(pointer&&!pointer.moved&&event.pointerType==='mouse'&&!paused){try{controls.lock();}catch{}}pointer=null;});
+    for(const button of document.querySelectorAll('[data-key]')){button.addEventListener('pointerdown',event=>{event.preventDefault();button.setPointerCapture(event.pointerId);keys.add(button.dataset.key);});for(const name of ['pointerup','pointercancel','lostpointercapture'])button.addEventListener(name,()=>keys.delete(button.dataset.key));}
+    $('#jump').addEventListener('pointerdown',jump);
+    addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+    buildLandscape();buildShops();buildOffice();buildResidents();batchScenery();batchActors();updateHud();
+    const modelData='__MODEL_DATA__';
+    const binary=Uint8Array.from(atob(modelData),character=>character.charCodeAt(0)).buffer;
+    new GLTFLoader().parse(binary,'',gltf=>{const model=gltf.scene;model.scale.setScalar(10);model.position.y=-3.4;model.traverse(object=>{if(object.isMesh){object.castShadow=true;object.receiveShadow=true;}});scene.add(model);installTerrain(model);renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;ready=true;$('#loading').remove();document.body.dataset.ready='true';window.__taipeiGame={scene,camera,renderer,physics,player,npcs,regions,progress,interactions,collisionBoxes,waterAreas,golfBall,hole,controls,showJournal,talk,startCards,showGolf,keys,terrainMeshes};},error=>{$('#load-message').textContent='模型載入失敗，請重新整理頁面。';console.error(error);});
+    let hudTime=0;
+    renderer.setAnimationLoop(()=>{const delta=Math.min(clock.getDelta(),.1);if(!ready){renderer.render(scene,camera);return;}if(!paused){gameTime+=delta;movePlayer(delta);updateResidents();syncActors();updateGolf(delta);}hudTime+=delta;if(hudTime>.12){hudTime=0;nearestInteraction();explore();drawMap();}renderer.render(scene,camera);});
+  </script>
+</body>
+</html>
